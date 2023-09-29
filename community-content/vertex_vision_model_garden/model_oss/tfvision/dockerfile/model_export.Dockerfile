@@ -10,10 +10,8 @@
 FROM us-docker.pkg.dev/vertex-ai/vertex-vision-model-garden-dockers/tfvision-base-v2:latest
 
 # Copy license.
-RUN wget https://raw.githubusercontent.com/GoogleCloudPlatform/vertex-ai-samples/main/LICENSE
 
 RUN PROTOC_ZIP=protoc-3.9.2-linux-x86_64.zip && \
-  curl -OL https://github.com/google/protobuf/releases/download/v3.9.2/$PROTOC_ZIP && \
   unzip -o $PROTOC_ZIP -d /usr/local bin/protoc && \
   unzip -o $PROTOC_ZIP -d /usr/local include/* && \
   rm -f $PROTOC_ZIP

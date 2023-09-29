@@ -10,7 +10,6 @@
 FROM us-docker.pkg.dev/vertex-ai/vertex-vision-model-garden-dockers/tfvision-base:latest
 
 # Copy license.
-RUN wget https://raw.githubusercontent.com/GoogleCloudPlatform/vertex-ai-samples/main/LICENSE
 
 # Fix yolo and retinanet issues.
 RUN mkdir /tmp/buffer && \

@@ -13,7 +13,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # This is added to fix docker build error related to Nvidia key update.
 RUN rm -f /etc/apt/sources.list.d/cuda.list
-RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 
 # Install basic libs.
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -35,7 +34,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 
 # Install google cloud SDK.
-RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-359.0.0-linux-x86_64.tar.gz
 RUN tar xzf google-cloud-sdk-359.0.0-linux-x86_64.tar.gz
 RUN ./google-cloud-sdk/install.sh -q
 # Make sure gsutil will use the default service account.
@@ -55,10 +53,6 @@ RUN pip install cloudml-hypertune==0.1.0.dev6
 RUN pip install object-detection==0.0.3
 RUN pip install pylint==2.17.2
 
-# Installs Reduction Server NCCL plugin.
-RUN echo "deb https://packages.cloud.google.com/apt google-fast-socket main" | tee /etc/apt/sources.list.d/google-fast-socket.list \
-&&  curl -s -L https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - \
-&&  apt update && apt install -y google-reduction-server
 
 ENV PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=cpp
 
