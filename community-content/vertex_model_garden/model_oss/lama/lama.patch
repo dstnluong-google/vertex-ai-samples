@@ -1,0 +1,117 @@
+diff --git a/models/ade20k/base.py b/models/ade20k/base.py
+index 8cdbe2d..b87c81b 100644
+--- a/models/ade20k/base.py
++++ b/models/ade20k/base.py
+@@ -14,9 +14,8 @@ from . import mobilenet
+ 
+ 
+ NUM_CLASS = 150
+-base_path = os.path.dirname(os.path.abspath(__file__))  # current file path
+-colors_path = os.path.join(base_path, 'color150.mat')
+-classes_path = os.path.join(base_path, 'object150_info.csv')
++colors_path = 'color150.mat'
++classes_path = 'object150_info.csv'
+ 
+ segm_options = dict(colors=loadmat(colors_path)['colors'],
+                     classes=pd.read_csv(classes_path),)
+diff --git a/saicinpainting/evaluation/data.py b/saicinpainting/evaluation/data.py
+index 89a4ea4..c5a7c09 100644
+--- a/saicinpainting/evaluation/data.py
++++ b/saicinpainting/evaluation/data.py
+@@ -55,6 +55,34 @@ def scale_image(img, factor, interpolation=cv2.INTER_AREA):
+     return img
+ 
+ 
++class InpaintingMemoryDataset(Dataset):
++    def __init__(self, img_data, mask_data, pad_out_to_modulo=None, scale_factor=None):
++        self.pad_out_to_modulo = pad_out_to_modulo
++        self.scale_factor = scale_factor
++        self.img = img_data
++        self.mask = mask_data
++
++    def __len__(self):
++        return 1
++
++    def __getitem__(self, i):
++        image = load_image(self.img, mode='RGB')
++        mask = load_image(self.mask, mode='L')
++        result = dict(image=image, mask=mask[None, ...])
++
++        if self.scale_factor is not None:
++            result['image'] = scale_image(result['image'], self.scale_factor)
++            result['mask'] = scale_image(result['mask'], self.scale_factor, interpolation=cv2.INTER_NEAREST)
++
++        if self.pad_out_to_modulo is not None and self.pad_out_to_modulo > 1:
++            result['unpad_to_size'] = result['image'].shape[1:]
++            result['image'] = pad_img_to_modulo(result['image'], self.pad_out_to_modulo)
++            result['mask'] = pad_img_to_modulo(result['mask'], self.pad_out_to_modulo)
++
++        return result
++
++
++
+ class InpaintingDataset(Dataset):
+     def __init__(self, datadir, img_suffix='.jpg', pad_out_to_modulo=None, scale_factor=None):
+         self.datadir = datadir
+diff --git a/saicinpainting/evaluation/utils.py b/saicinpainting/evaluation/utils.py
+index 6d7c15c..792b0f6 100644
+--- a/saicinpainting/evaluation/utils.py
++++ b/saicinpainting/evaluation/utils.py
+@@ -1,16 +1,9 @@
+ from enum import Enum
+ 
+ import yaml
+-from easydict import EasyDict as edict
+ import torch.nn as nn
+ import torch
+ 
+-
+-def load_yaml(path):
+-    with open(path, 'r') as f:
+-        return edict(yaml.safe_load(f))
+-
+-
+ def move_to_device(obj, device):
+     if isinstance(obj, nn.Module):
+         return obj.to(device)
+diff --git a/saicinpainting/training/data/datasets.py b/saicinpainting/training/data/datasets.py
+index c4f503d..968b9b9 100644
+--- a/saicinpainting/training/data/datasets.py
++++ b/saicinpainting/training/data/datasets.py
+@@ -15,7 +15,7 @@ from skimage.transform import rescale, resize
+ from torch.utils.data import Dataset, IterableDataset, DataLoader, DistributedSampler, ConcatDataset
+ 
+ from saicinpainting.evaluation.data import InpaintingDataset as InpaintingEvaluationDataset, \
+-    OurInpaintingDataset as OurInpaintingEvaluationDataset, ceil_modulo, InpaintingEvalOnlineDataset
++    OurInpaintingDataset as OurInpaintingEvaluationDataset, InpaintingMemoryDataset, ceil_modulo, InpaintingEvalOnlineDataset
+ from saicinpainting.training.data.aug import IAAAffine2, IAAPerspective2
+ from saicinpainting.training.data.masks import get_mask_generator
+ 
+@@ -246,6 +246,18 @@ def make_default_train_dataloader(indir, kind='default', out_size=512, mask_gen_
+     return dataloader
+ 
+ 
++def make_inmemory_dataset(img_data, mask_data, out_size=512, transform_variant='default', **kwargs):
++    mask_generator = get_mask_generator(kind=kwargs.get("mask_generator_kind"), kwargs=kwargs.get("mask_gen_kwargs"))
++
++    if transform_variant is not None:
++        transform = get_transforms(transform_variant, out_size)
++
++    dataset = InpaintingMemoryDataset(img_data, mask_data, **kwargs)
++
++    return dataset
++
++
++
+ def make_default_val_dataset(indir, kind='default', out_size=512, transform_variant='default', **kwargs):
+     if OmegaConf.is_list(indir) or isinstance(indir, (tuple, list)):
+         return ConcatDataset([
+@@ -260,6 +272,8 @@ def make_default_val_dataset(indir, kind='default', out_size=512, transform_vari
+ 
+     if kind == 'default':
+         dataset = InpaintingEvaluationDataset(indir, **kwargs)
++    elif kind == 'memory':
++        dataset = InpaintingMemoryDataset()
+     elif kind == 'our_eval':
+         dataset = OurInpaintingEvaluationDataset(indir, **kwargs)
+     elif kind == 'img_with_segm':
